@@ -1,0 +1,18 @@
+CONCEPT CAR MODEL / ASSET CREDITS
+
+File: concept_car.glb
+Title: Nova Motors Concept 01 (original low-poly concept car)
+Origin: Procedurally modelled for this AR classroom assignment in 2026.
+Author/credit: Original project asset; generated from tools/build_concept_car.py.
+Third-party mesh, texture or image dependencies: None.
+Licence: CC0 1.0 Universal (public-domain dedication) for original geometry
+and its generator code to the extent copyright is controlled by its creators.
+
+Full CC0 legal code and explanation:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+This is NOT the workshop Duck model. The complete .glb is stored locally
+and requires no third-party model host at runtime.
+
+Technology libraries (A-Frame and AR.js) are independent open-source
+projects loaded by CDN; their own terms apply.
