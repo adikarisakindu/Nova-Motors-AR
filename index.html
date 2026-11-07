@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07182a">
+  <meta name="description" content="A Hiro-marker augmented reality concept car showroom built with A-Frame and AR.js.">
+  <title>Nova Motors | Mini AR Showroom</title>
+
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --navy: #07182a;
+      --blue: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #07182a;
+    }
+
+    .status {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 57px;
+      padding: 10px 16px;
+      text-align: center;
+      color: #fff;
+      background: #9d2638;
+      font-size: clamp(12px, 2.8vw, 15px);
+      font-weight: 700;
+      letter-spacing: .015em;
+      box-shadow: 0 4px 20px #0002;
+      pointer-events: none;
+      transition: background-color .2s ease;
+    }
+
+    .status.found {
+      background: #126a4e;
+    }
+
+    .status .dot {
+      flex: none;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 0 0 4px #ffffff2c;
+    }
+
+    .hud {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: max(18px, env(safe-area-inset-bottom));
+      z-index: 1000;
+      width: min(calc(100% - 26px), 520px);
+      background: rgba(5, 20, 36, .84);
+      border: 1px solid #ffffff3a;
+      border-radius: 18px;
+      backdrop-filter: blur(12px);
+      color: #f1f7ff;
+      padding: 13px 17px 14px;
+      pointer-events: none;
+      box-shadow: 0 10px 34px #0006;
+    }
+
+    .hud-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .brand {
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .19em;
+      color: #7dd3fc;
+    }
+
+    .model-name {
+      font-size: 15px;
+      font-weight: 780;
+    }
+
+    .hud p {
+      margin: 7px 0 0;
+      line-height: 1.45;
+      font-size: 12px;
+      color: #e0e9f3;
+    }
+
+    .legend {
+      display: flex;
+      gap: 13px;
+      flex-wrap: wrap;
+      margin-top: 7px;
+      color: #e6f4fc;
+    }
+
+    .legend span {
+      white-space: nowrap;
+    }
+
+    .legend b {
+      color: #7dd3fc;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      top: 70px;
+      transform: translateX(-50%);
+      padding: 8px 13px;
+      max-width: calc(100% - 20px);
+      color: #fff;
+      background: #07182ad9;
+      border: 1px solid #ffffff3a;
+      font-size: 12px;
+      text-align: center;
+      border-radius: 999px;
+      z-index: 1000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .16s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    @media (max-height: 430px) {
+      .hud {
+        padding: 8px 12px;
+        bottom: 8px;
+      }
+
+      .hud p {
+        display: none;
+      }
+    }
+  </style>
+
+  <script>
+    'use strict';
+    function announce(message) {
+      const toast = document.getElementById('action-message');
+      if (!toast) return;
+      toast.textContent = message;
+      toast.classList.add('show');
+      window.clearTimeout(announce.timeout);
+      announce.timeout = window.setTimeout(() => toast.classList.remove('show'), 1900);
+    }
+
+    function listenForObjectActivation(el, callback) {
+      let previousAction = 0;
+      const activate = () => {
+        const now = Date.now();
+        if (now - previousAction < 420) return;
+        previousAction = now;
+        callback();
+      };
+      el.addEventListener('click', activate);
+      el.addEventListener('ar-object-tap', activate);
+    }
+
+    AFRAME.registerComponent('color-changer', {
+      init: function () {
+        const palette = ['#fa496c', '#42ddc2', '#ffd166', '#60a5fa', '#d5a8ff'];
+        let colorIndex = 0;
+        listenForObjectActivation(this.el, () => {
+          colorIndex = (colorIndex + 1) % palette.length;
+          this.el.setAttribute('color', palette[colorIndex]);
+          this.el.setAttribute('material', 'color', palette[colorIndex]);
+          announce('Ball color changed!');
+        });
+      }
+    });
+
+    AFRAME.registerComponent('grow-toggle', {
+      init: function () {
+        let expanded = false;
+        listenForObjectActivation(this.el, () => {
+          const current = this.el.getAttribute('scale');
+          const start = `${current.x} ${current.y} ${current.z}`;
+          expanded = !expanded;
+          const target = expanded ? '1.55 1.55 1.55' : '1 1 1';
+          this.el.setAttribute('animation__grow',
+            `property: scale; from: ${start}; to: ${target}; dur: 320; easing: easeOutBack`);
+          announce(expanded ? 'Display button enlarged!' : 'Display button reset.');
+        });
+      }
+    });
+
+    function installObjectPicking() {
+      const scene = document.querySelector('a-scene');
+      const status = document.getElementById('status');
+      const ball = document.getElementById('color-ball');
+      const cube = document.getElementById('grow-button');
+      const targets = [ball, cube];
+      const THREE = AFRAME.THREE;
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      const worldBox = new THREE.Box3();
+      const corner = new THREE.Vector3();
+      let lastPointerTime = 0;
+
+      function closestHit(x, y) {
+        const camera = scene.camera;
+        const canvas = scene.renderer && scene.renderer.domElement;
+        if (!canvas || !camera || !status.classList.contains('found')) return null;
+
+        const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height ||
+          x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
+
+        pointer.set((x - rect.left) * 2 / rect.width - 1,
+          1 - (y - rect.top) * 2 / rect.height);
+        scene.object3D.updateMatrixWorld(true);
+        camera.updateMatrixWorld(true);
+        raycaster.setFromCamera(pointer, camera);
+
+        let best = null;
+        for (const target of targets) {
+          const object = target.object3D;
+          if (!object || !object.visible) continue;
+          const intersections = raycaster.intersectObject(object, true);
+          if (intersections.length && (!best || intersections[0].distance < best.distance)) {
+            best = { target: target, distance: intersections[0].distance };
+          }
+        }
+        if (best) return best.target;
+
+        let bestScreen = null;
+        for (const target of targets) {
+          if (!target.object3D || !target.object3D.visible) continue;
+          worldBox.setFromObject(target.object3D);
+          if (worldBox.isEmpty()) continue;
+          let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+          for (let i = 0; i < 8; i++) {
+            corner.set(i & 1 ? worldBox.max.x : worldBox.min.x,
+              i & 2 ? worldBox.max.y : worldBox.min.y,
+              i & 4 ? worldBox.max.z : worldBox.min.z).project(camera);
+            if (!Number.isFinite(corner.x) || !Number.isFinite(corner.y)) continue;
+            const px = rect.left + (corner.x + 1) * rect.width / 2;
+            const py = rect.top + (1 - corner.y) * rect.height / 2;
+            left = Math.min(left, px); right = Math.max(right, px);
+            top = Math.min(top, py); bottom = Math.max(bottom, py);
+          }
+          if (!Number.isFinite(left)) continue;
+          const pad = 9;
+          left -= pad; right += pad; top -= pad; bottom += pad;
+          if (x >= left && x <= right && y >= top && y <= bottom) {
+            const cx = (left + right) / 2, cy = (top + bottom) / 2;
+            const distance = (cx - x) ** 2 + (cy - y) ** 2;
+            if (!bestScreen || distance < bestScreen.distance) {
+              bestScreen = { target: target, distance: distance };
+            }
+          }
+        }
+        return bestScreen && bestScreen.target;
+      }
+
+      function handleTap(x, y) {
+        const target = closestHit(x, y);
+        if (target) target.emit('ar-object-tap', {}, false);
+      }
+
+      document.addEventListener('pointerup', event => {
+        lastPointerTime = Date.now();
+        handleTap(event.clientX, event.clientY);
+      }, true);
+
+      document.addEventListener('touchend', event => {
+        if (Date.now() - lastPointerTime < 500) return;
+        const touch = event.changedTouches && event.changedTouches[0];
+        if (touch) handleTap(touch.clientX, touch.clientY);
+      }, true);
+      document.addEventListener('mouseup', event => {
+        if (Date.now() - lastPointerTime < 500) return;
+        lastPointerTime = Date.now();
+        handleTap(event.clientX, event.clientY);
+      }, true);
+    }
+    document.addEventListener('DOMContentLoaded', installObjectPicking);
+
+    AFRAME.registerComponent('marker-status', {
+      init: function () {
+        const status = document.getElementById('status');
+        this.el.addEventListener('markerFound', () => {
+          status.textContent = 'MARKER FOUND | Explore the Nova concept car';
+          status.classList.add('found');
+          announce('Showroom ready. Tap either interactive object.');
+        });
+        this.el.addEventListener('markerLost', () => {
+          status.textContent = 'MARKER LOST | Point your camera at the Hiro marker';
+          status.classList.remove('found');
+        });
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <div id="status" class="status" role="status" aria-live="polite">SEARCHING FOR MARKER | Point the camera at the Hiro
+    marker</div>
+  <div id="action-message" class="toast" role="status" aria-live="polite"></div>
+  <div class="hud" aria-label="Instructions">
+    <div class="hud-top">
+      <span class="brand">NOVA MOTORS</span>
+      <span class="model-name">Concept 01 | AR Showroom</span>
+    </div>
+    <p>Show the Hiro marker, then click the 3D ball or yellow cube directly.</p>
+    <div class="legend">
+      <span><b>●</b> Tap the moving ball to change its color</span>
+      <span><b>■</b> Tap the yellow cube to resize it</span>
+    </div>
+  </div>
+
+  <a-scene embedded vr-mode-ui="enabled: false" renderer="colorManagement: true; antialias: true; alpha: true"
+    arjs="sourceType: webcam; debugUIEnabled: false;">
+    <a-assets timeout="20000">
+      <a-asset-item id="concept-car" src="models/concept_car.glb"></a-asset-item>
+    </a-assets>
+
+    <a-marker id="hiro-marker" preset="hiro" emitevents="true" smooth="true" smooth-count="5" smooth-tolerance="0.01"
+      smooth-threshold="2" marker-status>
+
+      <a-plane position="0 0.003 0" rotation="-90 0 0" width="1.85" height="1.85" color="#071a2d"
+        material="side: double; roughness: .82"></a-plane>
+      <a-cylinder position="0 0.067 0" radius="0.75" height="0.13" color="#102a43"
+        material="metalness: .42; roughness: .37"></a-cylinder>
+      <a-cylinder position="0 0.14 0" radius="0.67" height="0.021" color="#1e4669"
+        material="metalness: .47; roughness: .29"></a-cylinder>
+      <a-torus position="0 0.158 0" rotation="90 0 0" radius="0.70" radius-tubular="0.015" color="#51c9ff"
+        material="emissive: #1d85c8; emissiveIntensity: .40"></a-torus>
+
+      <a-entity position="0 0.17 0" animation="property: rotation; to: 0 360 0; dur: 12000; easing: linear; loop: true">
+        <a-entity gltf-model="#concept-car" position="0 0 0" scale="0.73 0.73 0.73"></a-entity>
+      </a-entity>
+
+      <a-sphere id="color-ball" class="clickable" color-changer position="-0.78 0.37 0.17" radius="0.16" color="#fa496c"
+        material="roughness: .26; metalness: .12; emissive: #44111b; emissiveIntensity: .15"
+        animation="property: position; from: -0.78 0.31 0.17; to: -0.78 0.55 0.17; dir: alternate; dur: 970; easing: easeInOutQuad; loop: true">
+        <a-sphere radius="0.235" material="opacity: 0; transparent: true; depthWrite: false"></a-sphere>
+      </a-sphere>
+      <a-cylinder position="-0.78 0.034 0.17" radius="0.17" height="0.065" color="#1b506a"></a-cylinder>
+
+      <a-box id="grow-button" class="clickable" grow-toggle position="0.79 0.20 0.17" width="0.28" height="0.22"
+        depth="0.28" color="#ffd166"
+        material="metalness: .28; roughness: .23; emissive: #654711; emissiveIntensity: .24">
+        <a-box width="0.39" height="0.31" depth="0.39"
+          material="opacity: 0; transparent: true; depthWrite: false"></a-box>
+      </a-box>
+      <a-cylinder position="0.79 0.045 0.17" radius="0.17" height="0.09" color="#1b506a"></a-cylinder>
+
+
+      <a-text value="NOVA MOTORS" position="0 1.03 -0.28" rotation="-12 0 0" align="center" width="2.85" color="#e8f7ff"
+        side="double"></a-text>
+      <a-text value="CONCEPT 01" position="0 0.34 0.78" rotation="-32 0 0" align="center" width="1.45" color="#7dd3fc"
+        side="double"></a-text>
+      <a-text value="COLOR" position="-0.78 0.10 0.48" rotation="-65 0 0" align="center" width="1.0" color="#ffffff"
+        side="double"></a-text>
+      <a-text value="GROW" position="0.79 0.10 0.48" rotation="-65 0 0" align="center" width="1.0" color="#ffffff"
+        side="double"></a-text>
+    </a-marker>
+
+
+    <a-entity camera cursor="fuse: false; rayOrigin: mouse" raycaster="objects: .clickable; far: 20"></a-entity>
+    <a-light type="ambient" intensity="1.1" color="#ffffff"></a-light>
+    <a-light type="directional" intensity="0.85" color="#ffffff" position="-1 3 2"></a-light>
+  </a-scene>
+</body>
+
+</html>
